@@ -39,6 +39,6 @@ jobs:
         uses: docker/build-push-action@v6
         with:
           push: true
-          context: ./segunda-pipeline/src
+          context: ./segunda-pipeline
           file: segunda-pipeline/dockerfile
           tags: ${{ secrets.DOCKERHUB_USER }}/segunda-pipeline:v${{ github.run_number }}
