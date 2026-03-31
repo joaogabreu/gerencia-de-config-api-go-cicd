@@ -6,10 +6,6 @@ on:
       SONAR_TOKEN:
         required: true
 
-defaults:
-  run:
-    working-directory: ./segunda-pipeline
-
 jobs:
   unit-tests:
     name: Testes Unitários
