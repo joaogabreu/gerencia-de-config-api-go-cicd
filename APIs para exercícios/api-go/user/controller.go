@@ -16,12 +16,24 @@ func NewUserController(s *UserService) *UserController {
 }
 
 func (c *UserController) ListUsers(w http.ResponseWriter, r *http.Request) {
-	users, _ := c.service.ListUsers()
-	json.NewEncoder(w).Encode(users)
+	users, err := c.service.ListUsers()
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	if err := json.NewEncoder(w).Encode(users); err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+	}
 }
 
 func (c *UserController) GetUser(w http.ResponseWriter, r *http.Request) {
 	id := extractID(r.URL.Path)
+	if id == 0 {
+		http.Error(w, "invalid id", http.StatusBadRequest)
+		return
+	}
 
 	user, err := c.service.GetUser(id)
 	if err != nil {
@@ -29,23 +41,44 @@ func (c *UserController) GetUser(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	json.NewEncoder(w).Encode(user)
+	w.Header().Set("Content-Type", "application/json")
+	if err := json.NewEncoder(w).Encode(user); err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+	}
 }
 
 func (c *UserController) CreateUser(w http.ResponseWriter, r *http.Request) {
 	var u User
-	json.NewDecoder(r.Body).Decode(&u)
+	if err := json.NewDecoder(r.Body).Decode(&u); err != nil {
+		http.Error(w, "invalid payload", http.StatusBadRequest)
+		return
+	}
 
-	created, _ := c.service.CreateUser(u)
+	created, err := c.service.CreateUser(u)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusCreated)
-	json.NewEncoder(w).Encode(created)
+	if err := json.NewEncoder(w).Encode(created); err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+	}
 }
 
 func (c *UserController) UpdateUser(w http.ResponseWriter, r *http.Request) {
 	id := extractID(r.URL.Path)
+	if id == 0 {
+		http.Error(w, "invalid id", http.StatusBadRequest)
+		return
+	}
 
 	var u User
-	json.NewDecoder(r.Body).Decode(&u)
+	if err := json.NewDecoder(r.Body).Decode(&u); err != nil {
+		http.Error(w, "invalid payload", http.StatusBadRequest)
+		return
+	}
 
 	updated, err := c.service.UpdateUser(id, u)
 	if err != nil {
@@ -53,11 +86,18 @@ func (c *UserController) UpdateUser(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	json.NewEncoder(w).Encode(updated)
+	w.Header().Set("Content-Type", "application/json")
+	if err := json.NewEncoder(w).Encode(updated); err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+	}
 }
 
 func (c *UserController) DeleteUser(w http.ResponseWriter, r *http.Request) {
 	id := extractID(r.URL.Path)
+	if id == 0 {
+		http.Error(w, "invalid id", http.StatusBadRequest)
+		return
+	}
 
 	err := c.service.DeleteUser(id)
 	if err != nil {
@@ -70,6 +110,10 @@ func (c *UserController) DeleteUser(w http.ResponseWriter, r *http.Request) {
 
 func extractID(path string) int {
 	parts := strings.Split(path, "/")
-	id, _ := strconv.Atoi(parts[len(parts)-1])
+	id, err := strconv.Atoi(parts[len(parts)-1])
+	if err != nil {
+		return 0
+	}
+
 	return id
 }

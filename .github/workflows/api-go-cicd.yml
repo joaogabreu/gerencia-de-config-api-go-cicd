@@ -1,0 +1,261 @@
+name: API Go CI/CD
+run-name: API Go CI/CD por ${{ github.actor }}
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "APIs para exercícios/api-go/**"
+      - ".github/workflows/api-go-cicd.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  security-events: write
+
+jobs:
+  ci-build:
+    name: Build
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: "APIs para exercícios/api-go"
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+
+      - name: Setup Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: "1.23.x"
+
+      - name: Download dependencies
+        run: go mod download
+
+      - name: Build
+        run: go build ./...
+
+  unit-tests:
+    name: Testes Unitarios
+    runs-on: ubuntu-latest
+    needs: ci-build
+    defaults:
+      run:
+        working-directory: "APIs para exercícios/api-go"
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+
+      - name: Setup Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: "1.23.x"
+
+      - name: Run unit tests
+        run: go test ./... -coverprofile=coverage.out
+
+      - name: Upload coverage report
+        uses: actions/upload-artifact@v4
+        with:
+          name: api-go-coverage
+          path: "APIs para exercícios/api-go/coverage.out"
+
+  integration-tests:
+    name: Testes de Integracao
+    runs-on: ubuntu-latest
+    needs: unit-tests
+    defaults:
+      run:
+        working-directory: "APIs para exercícios/api-go"
+
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_DB: api_go_test
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d api_go_test"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+
+      - name: Setup Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: "1.23.x"
+
+      - name: Run integration tests
+        env:
+          TEST_DATABASE_URL: host=localhost port=5432 user=postgres password=postgres dbname=api_go_test sslmode=disable
+        run: go test ./... -run TestPostgresRepositoryCRUD -v
+
+  lint:
+    name: Lint
+    runs-on: ubuntu-latest
+    needs: integration-tests
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+
+      - name: Setup Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: "1.23.x"
+
+      - name: Run golangci-lint
+        uses: golangci/golangci-lint-action@v8
+        with:
+          version: v2.1.6
+          working-directory: "APIs para exercícios/api-go"
+
+  code-quality:
+    name: Analise de Qualidade Sonar
+    runs-on: ubuntu-latest
+    needs: lint
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+
+      - name: SonarQube Scan
+        uses: SonarSource/sonarqube-scan-action@v5
+        env:
+          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+          SONAR_HOST_URL: ${{ secrets.SONAR_HOST_URL }}
+        with:
+          projectBaseDir: "APIs para exercícios/api-go"
+          args: >
+            -Dsonar.projectKey=${{ secrets.SONAR_PROJECT_KEY }}
+            -Dsonar.organization=${{ secrets.SONAR_ORGANIZATION }}
+
+  sast:
+    name: SAST (Semgrep)
+    runs-on: ubuntu-latest
+    needs: code-quality
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+
+      - name: Run Semgrep
+        uses: semgrep/semgrep-action@v1
+        with:
+          config: p/default
+
+  docker-lint:
+    name: Docker Lint
+    runs-on: ubuntu-latest
+    needs: sast
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+
+      - name: Lint Dockerfile
+        uses: hadolint/hadolint-action@v3.1.0
+        with:
+          dockerfile: "APIs para exercícios/api-go/Dockerfile"
+
+  container-release:
+    name: Build, Scan e Push da Imagem
+    runs-on: ubuntu-latest
+    needs: docker-lint
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Build image for scan
+        uses: docker/build-push-action@v6
+        with:
+          context: "APIs para exercícios/api-go"
+          file: "APIs para exercícios/api-go/Dockerfile"
+          load: true
+          tags: ${{ secrets.DOCKERHUB_USER }}/api-go:ci
+
+      - name: Trivy vulnerability scan
+        uses: aquasecurity/trivy-action@0.30.0
+        with:
+          image-ref: ${{ secrets.DOCKERHUB_USER }}/api-go:ci
+          format: table
+          exit-code: "0"
+          ignore-unfixed: true
+          vuln-type: os,library
+          severity: CRITICAL,HIGH
+
+      - name: Docker Hub login
+        uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKERHUB_USER }}
+          password: ${{ secrets.DOCKERHUB_PWD }}
+
+      - name: Build and push image
+        uses: docker/build-push-action@v6
+        with:
+          context: "APIs para exercícios/api-go"
+          file: "APIs para exercícios/api-go/Dockerfile"
+          push: true
+          tags: |
+            ${{ secrets.DOCKERHUB_USER }}/api-go:latest
+            ${{ secrets.DOCKERHUB_USER }}/api-go:v${{ github.run_number }}
+
+  deploy-homolog:
+    name: Deploy em Homologacao
+    runs-on: ubuntu-latest
+    needs: container-release
+
+    steps:
+      - name: Trigger Render deploy (homolog)
+        run: curl -X POST ${{ secrets.RENDER_DEPLOY_HOOK_HOMOLOG }}
+
+  dast:
+    name: DAST com OWASP ZAP
+    runs-on: ubuntu-latest
+    needs: deploy-homolog
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+
+      - name: ZAP baseline scan
+        uses: zaproxy/action-baseline@v0.14.0
+        continue-on-error: true
+        with:
+          target: ${{ secrets.HOMOLOG_APP_URL }}
+          fail_action: true
+
+  manual-approval:
+    name: Aprovacao Manual
+    runs-on: ubuntu-latest
+    needs: dast
+    environment:
+      name: production-approval
+
+    steps:
+      - name: Confirm approval gate
+        run: echo "Aguardando aprovacao manual via environment protection."
+
+  deploy-prod:
+    name: Deploy em Producao
+    runs-on: ubuntu-latest
+    needs: manual-approval
+    environment:
+      name: production
+
+    steps:
+      - name: Trigger Render deploy (prod)
+        run: curl -X POST ${{ secrets.RENDER_DEPLOY_HOOK_PROD }}

@@ -1,67 +1,87 @@
-# 🚀 API em Go
+# API em Go
 
-## 📌 Sobre o Projeto
-API simples desenvolvida em GO como forma de treinamento para criação do dockerfile, compose e ci/cd
+## Sobre o projeto
+API de CRUD de usuários para prática de Docker, Compose e CI/CD.
 
-Pré-requisitos
-- Go instalado (>= 1.20)
+## O que foi implementado
+- Persistência em PostgreSQL (com criação automática da tabela `users`)
+- `Dockerfile` multi-stage para build e execução da API
+- `docker-compose.yml` com API + PostgreSQL + PGAdmin
+- Testes unitários e de integração
+- Pipeline CI/CD em GitHub Actions cobrindo CI, container e CD
 
-Passo a passo
-- cd api-go
-- go mod tidy
-- go run main.go
+## Pré-requisitos
+- Go >= 1.23
+- Docker e Docker Compose
 
-A API estará disponível em:
-- http://localhost:3000
+## Rodando local sem Docker
+1. Entrar na pasta da API:
+   - `cd "APIs para exercícios/api-go"`
+2. Baixar dependências:
+   - `go mod tidy`
+3. Subir PostgreSQL local ou usar variáveis de ambiente para uma instância existente
+4. Executar aplicação:
+   - `go run main.go`
 
-## 🐳 (Atividade 1) Rodando com Docker
+Variáveis suportadas:
+- `DATABASE_URL`
+- `DB_HOST` (padrão: `localhost`)
+- `DB_PORT` (padrão: `5432`)
+- `DB_NAME` (padrão: `api_go`)
+- `DB_USER` (padrão: `postgres`)
+- `DB_PASSWORD` (padrão: `postgres`)
+- `DB_SSLMODE` (padrão: `disable`)
 
-Você deverá criar um Dockerfile para essa aplicação
+## Atividade 1: Docker
+Build da imagem:
+- `docker build -t api-go .`
 
-### Requisitos:
+Run do container:
+- `docker run --rm -p 3000:3000 --name api-go api-go`
 
-- Utilizar imagem oficial do Go
-- Build da aplicação
-- Usar multi-stage build
-- Expor porta 3000
-- Executar a API
+## Atividade 2: Docker Compose
+Subir API + PostgreSQL + PGAdmin:
+- `docker compose up -d --build`
 
+Serviços:
+- API: `http://localhost:3010`
+- PGAdmin: `http://localhost:8081`
+  - Email: `admin@admin.com`
+  - Senha: `admin`
 
-## 🐳 (Atividade 2) Rodando com Compose
+## Desafio: CI/CD
+Workflow criado em:
+- `.github/workflows/api-go-cicd.yml`
 
-Você deverá modificar a aplicação para fazer acesso ao banco de dados. Crie um docker compose para executar o PostreSQL, o PGAdmin e a aplicação em GO atraves do dockerfile que você criou
-
-### Requisitos:
-
-- Utilizar o dockerfile criado na atividade 1
-- Criar um docker compose com:
-  - A aplicação em go
-  - O banco PostgreSQL
-  - O PGAdmin
-
-
-
-
-## ⚙️ (DESAFIO) CI/CD
-
-Crie um CI/CD no github actions com as seguintes etapas
-
-- CI (Integração Contínua)
-  - Build da aplicação
+Etapas implementadas:
+- CI
+  - Build
   - Testes unitários
-  - Testes de integração
-  - Lint
-  - Análise de qualidade de código (SonarQube)
-  - SAST (Semgrep ou Checkmarx ou Fortify, etc)
-
+  - Testes de integração (com PostgreSQL em service container)
+  - Lint com `golangci-lint`
+  - SonarQube
+  - SAST com Semgrep
 - Container
-  - Docker Lint
+  - Docker Lint com Hadolint
   - Build da imagem
-  - Scan de vulnerabilidades (Trivy)
-  - Push da imagem no dockerhub
+  - Scan de vulnerabilidade com Trivy
+  - Push da imagem no Docker Hub
+- CD
+  - Deploy de homolog no Render
+  - DAST com OWASP ZAP
+  - Aprovação manual via environment `production-approval`
+  - Deploy de produção no Render
 
-- CD (Entrega Contínua)
-   - Deploy em homologação com Render
-   - DAST (OWASP ZAP)
-   - Criação da aprovação manual
-   - Deploy em produção
+## Secrets necessários no GitHub
+- `DOCKERHUB_USER`
+- `DOCKERHUB_PWD`
+- `SONAR_TOKEN`
+- `SONAR_HOST_URL`
+- `SONAR_PROJECT_KEY`
+- `SONAR_ORGANIZATION`
+- `RENDER_DEPLOY_HOOK_HOMOLOG`
+- `HOMOLOG_APP_URL`
+- `RENDER_DEPLOY_HOOK_PROD`
+
+## Observação importante
+Para a aprovação manual funcionar, configure o ambiente `production-approval` no GitHub com reviewers obrigatórios.
