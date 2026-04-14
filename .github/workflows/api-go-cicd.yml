@@ -189,7 +189,7 @@ jobs:
           tags: ${{ secrets.DOCKERHUB_USER }}/api-go:ci
 
       - name: Trivy vulnerability scan
-        uses: aquasecurity/trivy-action@0.30.0
+        uses: aquasecurity/trivy-action@master
         with:
           image-ref: ${{ secrets.DOCKERHUB_USER }}/api-go:ci
           format: table
