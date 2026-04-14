@@ -44,8 +44,8 @@ Subir API + PostgreSQL + PGAdmin:
 - `docker compose up -d --build`
 
 Serviços:
-- API: `http://localhost:3010`
-- PGAdmin: `http://localhost:8081`
+- API: `http://localhost:3000`
+- PGAdmin: `http://localhost:5050`
   - Email: `admin@admin.com`
   - Senha: `admin`
 
