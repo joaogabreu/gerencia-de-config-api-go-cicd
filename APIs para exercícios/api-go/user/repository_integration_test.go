@@ -16,7 +16,9 @@ func TestPostgresRepositoryCRUD(t *testing.T) {
 	}
 
 	db := openDBWithRetry(t, dsn)
-	defer db.Close()
+	defer func() {
+		_ = db.Close()
+	}()
 
 	if err := EnsureSchema(db); err != nil {
 		t.Fatalf("failed to ensure schema: %v", err)

@@ -83,7 +83,6 @@ func (r *PostgresUserRepository) GetAll() ([]User, error) {
 	if err != nil {
 		return nil, err
 	}
-	defer rows.Close()
 
 	users := []User{}
 	for rows.Next() {
@@ -95,6 +94,9 @@ func (r *PostgresUserRepository) GetAll() ([]User, error) {
 	}
 
 	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	if err := rows.Close(); err != nil {
 		return nil, err
 	}
 
